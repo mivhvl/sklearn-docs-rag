@@ -36,6 +36,7 @@ def build_chunks(doc_dir: Path, max_chars: int, overlap_chars: int) -> Iterator[
     for path in sorted(doc_dir.rglob("*.md")):
         if path.name.startswith("_") or path.name in EXCLUDE_FILES:
             continue
+
         chunk_idx = 0
         default_title = path.stem.replace("-", " ").title()  # Default Title
         source = path.relative_to(doc_dir).as_posix()
@@ -66,13 +67,12 @@ def build_chunks(doc_dir: Path, max_chars: int, overlap_chars: int) -> Iterator[
                 },
             }
 
-
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--docs", type=Path, default=DEFAULT_DOCS, help="FastAPI docs/en/docs directory")
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT, help="Output JSONL path")
-    parser.add_argument("--max-chars", type=int, default=3200, help="Maximum chunk size (characters)")
-    parser.add_argument("--overlap-chars", type=int, default=400, help="Character overlap between chunks")
+    parser.add_argument("--max-chars", type=int, default=450, help="Maximum chunk size (characters)")
+    parser.add_argument("--overlap-chars", type=int, default=50, help="Character overlap between chunks")
     args = parser.parse_args()
 
     if not args.docs.is_dir():

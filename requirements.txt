@@ -1,0 +1,6 @@
+langchain-core == 0.3.86
+langchain-text-splitters == 0.3.11
+numpy
+sentence-transformers
+transformers
+torch
