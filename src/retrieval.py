@@ -20,7 +20,7 @@ def build_embeds(chunks_path: Path, embeds_path: Path, model_name: str) -> None:
     if not chunks:
         raise SystemExit(f"No chunks found.")
 
-    model = SentenceTransformer(model_name) # Autoencoder (automatically calculate entire sentence embeddings)
+    model = SentenceTransformer(model_name) # Autoencoder (automatically calculates entire sentence embeddings)
     # Sentence Embeddings 
     embeddings = model.encode(
         [f"passage: {chunk['text']}" for chunk in chunks], # add 'passage:' before the chunk
@@ -35,7 +35,7 @@ def build_embeds(chunks_path: Path, embeds_path: Path, model_name: str) -> None:
     print(f"Embedded {len(chunks)} chunks saved in {embeds_path}")
 
 
-def search(chunks_path: Path, embeds_path: Path, query: str, top_k: int, model_name: str) -> None:
+def retrieve(chunks_path: Path, embeds_path: Path, query: str, top_k: int, model_name: str) -> list[dict]:
     if not chunks_path.is_file():
         raise SystemExit(f"Chunks file not found.")
     if not embeds_path.is_file():
@@ -54,13 +54,30 @@ def search(chunks_path: Path, embeds_path: Path, query: str, top_k: int, model_n
     )
     # Scoring the question with chunk's embeddings and taking k indexed with the best score
     scores = embeddings @ query_embedding
-    best_indices = np.argsort(-scores)[:top_k]
+    best_chunks_idx = np.argsort(-scores)[:top_k]
 
-    for index in best_indices:
+    results = []
+    for index in best_chunks_idx:
         chunk = chunks[int(index)] # get embedding
-        metadata = chunk["metadata"] # get metadata
-        print(f"\nScore={scores[index]:.3f} | {metadata.get('source', 'unknown')}") 
-        print(chunk["text"])
+        results.append({
+            "text": chunk["text"],
+            "metadata": chunk["metadata"],
+            "score": float(scores[index]),
+        })
+
+    return results
+
+def search(chunks_path: Path, index_path: Path, query: str, top_k: int, model_name: str) -> None:
+    
+    results = retrieve(chunks_path, index_path, query, top_k, model_name)
+
+    for result in results:
+        metadata = result["metadata"]
+        heading_path = " > ".join(metadata.get("headers_path", []))
+        print(f"\n\nScore={result['score']:.2f} | {metadata.get('source', 'unknown')}")
+        if heading_path:
+            print(heading_path)
+        print(result["text"])
 
 
 def main() -> None:

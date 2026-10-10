@@ -12,12 +12,25 @@ HEADERS_TO_SPLIT_ON = [("#", "h1"),
                        ("##", "h2"),
                        ("###", "h3"),
                        ("####", "h4")]
-EXCLUDE_FILES = {"release-notes.md","_llm-test.md","external-links.md", "fastapi-people.md", "translation-banner.md"}  # trash
+EXCLUDE_FILES = {"release-notes.md", "_llm-test.md", "external-links.md", "fastapi-people.md", "translation-banner.md"}  # trash
 MIN_CHARS = 50  # remove small chunks
+SPACE_MARKER = "␣"
+TAB_MARKER = "→"
+
 
 # Identificator Cleaner (from heads)
 def clean_heading(text: str) -> str:
     return re.sub(r"\s*\{\s*#[^}]+\}\s*$", "", text).strip()
+
+# Protecting spaces and tabes in the code line
+def protect_code(markdown: str) -> str:
+    def replace_block(match: re.Match) -> str:
+        return re.sub(
+            r"(?m)^[ \t]+",
+            lambda indent: indent.group(0).replace(" ", SPACE_MARKER).replace("\t", TAB_MARKER),
+            match.group(0),
+        )
+    return re.sub(r"(```[\s\S]*?```|~~~[\s\S]*?~~~)", replace_block, markdown)
 
 
 def build_chunks(doc_dir: Path, max_chars: int, overlap_chars: int) -> Iterator[dict]:
@@ -42,9 +55,10 @@ def build_chunks(doc_dir: Path, max_chars: int, overlap_chars: int) -> Iterator[
         source = path.relative_to(doc_dir).as_posix()
         markdown = path.read_text(encoding="utf-8")
 
-        sections = header_splitter.split_text(markdown)
+
+        sections = header_splitter.split_text(protect_code(markdown))
         for chunk in text_splitter.split_documents(sections):
-            text = chunk.page_content.strip()
+            text = chunk.page_content.strip().replace(SPACE_MARKER, " ").replace(TAB_MARKER, "\t")
             if len(text) < MIN_CHARS:
                 continue
             chunk_idx += 1
@@ -54,7 +68,9 @@ def build_chunks(doc_dir: Path, max_chars: int, overlap_chars: int) -> Iterator[
 
             # Context Injection (adding context (Headers Path) to the chunk text)
             if headers_path:
-                text = f"{' > '.join(headers_path)}\n\n{text}"
+                context = " > ".join(headers_path)
+                if not text.startswith(context):
+                    text = f"{context}\n\n{text}"
 
             yield {
                 "text": text,
@@ -67,12 +83,13 @@ def build_chunks(doc_dir: Path, max_chars: int, overlap_chars: int) -> Iterator[
                 },
             }
 
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--docs", type=Path, default=DEFAULT_DOCS, help="FastAPI docs/en/docs directory")
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT, help="Output JSONL path")
-    parser.add_argument("--max-chars", type=int, default=450, help="Maximum chunk size (characters)")
-    parser.add_argument("--overlap-chars", type=int, default=50, help="Character overlap between chunks")
+    parser.add_argument("--max-chars", type=int, default=1200, help="Maximum chunk size (characters)")
+    parser.add_argument("--overlap-chars", type=int, default=150, help="Character overlap between chunks")
     args = parser.parse_args()
 
     if not args.docs.is_dir():
